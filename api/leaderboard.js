@@ -4,7 +4,8 @@
 
 const API = 'https://api.superfiliate.com/api/v1';
 const TZ = 'America/Los_Angeles';
-const SINCE_YEAR = 2026; // ignore orders placed before this year
+const START_DATE = '2026-11-01'; // ignore orders placed before this date (Pacific time)
+const EXCLUDE_CUSTOMER_IDS = new Set([967322479]); // affiliates hidden from the board (967322479 = @carl_witness_lee)
 
 const laDate = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d); // YYYY-MM-DD
 
@@ -37,7 +38,7 @@ module.exports = async (req, res) => {
     const end = new Date(now.getTime() + 86400000).toISOString().slice(0, 10);
     let convs = [];
     for (let page = 1; page < 200; page++) {
-      const batch = await get('conversions', { start_date: `${SINCE_YEAR}-01-01`, end_date: end, include_pending: 'true', items: 250, page }, auth);
+      const batch = await get('conversions', { start_date: START_DATE, end_date: end, include_pending: 'true', items: 250, page }, auth);
       convs = convs.concat(batch);
       if (batch.length < 250) break;
     }
@@ -48,7 +49,7 @@ module.exports = async (req, res) => {
         const t = new Date(c.created_at.replace(' UTC', 'Z').replace(' ', 'T'));
         return { t, day: laDate(t), cid: c.superfiliate_customer_id };
       })
-      .filter((o) => Number(o.day.slice(0, 4)) >= SINCE_YEAR);
+      .filter((o) => o.day >= START_DATE && !EXCLUDE_CUSTOMER_IDS.has(Number(o.cid)));
 
     const ids = [...new Set(orders.map((o) => o.cid).filter(Boolean))];
     const customers = {};
@@ -77,12 +78,13 @@ module.exports = async (req, res) => {
       out[w] = sorted.map(([affiliate, n], i) => { if (n !== prev) { rank = i + 1; prev = n; } return { rank, affiliate, orders: n }; });
     }
 
-    // Last six months of total program orders
+    // Total program orders per month, from the start month to now (at most the last six)
     const monthly = [];
     const [y0, m0] = thisMonth.split('-').map(Number);
     for (let k = 5; k >= 0; k--) {
       const d = new Date(Date.UTC(y0, m0 - 1 - k, 1));
       const key = d.toISOString().slice(0, 7);
+      if (key < START_DATE.slice(0, 7)) continue;
       monthly.push({ month: key, orders: orders.filter((o) => o.day.startsWith(key)).length });
     }
 
