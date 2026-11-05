@@ -4,7 +4,8 @@
 
 const API = 'https://api.superfiliate.com/api/v1';
 const TZ = 'America/Los_Angeles';
-const START_DATE = '2026-11-01'; // ignore orders placed before this date (Pacific time)
+const START_DATE = '2026-11-01'; // contest start (Pacific time, inclusive)
+const END_DATE = '2026-12-31'; // contest end (Pacific time, inclusive)
 const EXCLUDE_CUSTOMER_IDS = new Set([967322479]); // affiliates hidden from the board (967322479 = @carl_witness_lee)
 
 const laDate = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d); // YYYY-MM-DD
@@ -35,7 +36,7 @@ module.exports = async (req, res) => {
     const auth = `Bearer ${SF_CLIENT_ID}:${SF_CLIENT_SECRET}`;
 
     const now = new Date();
-    const end = new Date(now.getTime() + 86400000).toISOString().slice(0, 10);
+    const end = '2027-01-02'; // a little past END_DATE so late-night Dec 31 Pacific orders are included
     let convs = [];
     for (let page = 1; page < 200; page++) {
       const batch = await get('conversions', { start_date: START_DATE, end_date: end, include_pending: 'true', items: 250, page }, auth);
@@ -49,7 +50,7 @@ module.exports = async (req, res) => {
         const t = new Date(c.created_at.replace(' UTC', 'Z').replace(' ', 'T'));
         return { t, day: laDate(t), cid: c.superfiliate_customer_id };
       })
-      .filter((o) => o.day >= START_DATE && !EXCLUDE_CUSTOMER_IDS.has(Number(o.cid)));
+      .filter((o) => o.day >= START_DATE && o.day <= END_DATE && !EXCLUDE_CUSTOMER_IDS.has(Number(o.cid)));
 
     const ids = [...new Set(orders.map((o) => o.cid).filter(Boolean))];
     const customers = {};
@@ -59,37 +60,21 @@ module.exports = async (req, res) => {
       chunk.forEach((id, k) => { customers[id] = found[k]; });
     }
 
-    const thisMonth = laDate(now).slice(0, 7);
-    const cutoff30 = now.getTime() - 30 * 86400000;
-    const windows = {
-      month: (o) => o.day.slice(0, 7) === thisMonth,
-      '30d': (o) => o.t.getTime() >= cutoff30,
-      all: () => true,
-    };
-    const out = {};
-    for (const [w, keep] of Object.entries(windows)) {
-      const agg = new Map();
-      for (const o of orders.filter(keep)) {
-        const name = displayName(customers[o.cid]);
-        agg.set(name, (agg.get(name) || 0) + 1);
-      }
-      const sorted = [...agg.entries()].sort((a, b) => b[1] - a[1] || a[0].toLowerCase().localeCompare(b[0].toLowerCase()));
-      let prev = null, rank = 0;
-      out[w] = sorted.map(([affiliate, n], i) => { if (n !== prev) { rank = i + 1; prev = n; } return { rank, affiliate, orders: n }; });
+    // One leaderboard for the whole contest window
+    const agg = new Map();
+    for (const o of orders) {
+      const name = displayName(customers[o.cid]);
+      agg.set(name, (agg.get(name) || 0) + 1);
     }
+    const sorted = [...agg.entries()].sort((a, b) => b[1] - a[1] || a[0].toLowerCase().localeCompare(b[0].toLowerCase()));
+    let prev = null, rank = 0;
+    const leaderboard = sorted.map(([affiliate, n], i) => { if (n !== prev) { rank = i + 1; prev = n; } return { rank, affiliate, orders: n }; });
 
-    // Total program orders per month, from the start month to now (at most the last six)
-    const monthly = [];
-    const [y0, m0] = thisMonth.split('-').map(Number);
-    for (let k = 5; k >= 0; k--) {
-      const d = new Date(Date.UTC(y0, m0 - 1 - k, 1));
-      const key = d.toISOString().slice(0, 7);
-      if (key < START_DATE.slice(0, 7)) continue;
-      monthly.push({ month: key, orders: orders.filter((o) => o.day.startsWith(key)).length });
-    }
+    // Total program orders per month of the contest
+    const monthly = ['2026-11', '2026-12'].map((key) => ({ month: key, orders: orders.filter((o) => o.day.startsWith(key)).length }));
 
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
-    res.status(200).json({ updated: now.toISOString(), windows: out, monthly });
+    res.status(200).json({ updated: now.toISOString(), today: laDate(now), start: START_DATE, end: END_DATE, leaderboard, monthly });
   } catch (e) {
     res.setHeader('Cache-Control', 'no-store');
     res.status(500).json({ error: String(e.message || e) });
