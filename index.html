@@ -107,7 +107,7 @@
       <div class="tabs" role="group" aria-label="Time window">
         <button type="button" class="tab" data-window="month" aria-pressed="false">This month</button>
         <button type="button" class="tab" data-window="30d" aria-pressed="false">Last 30 days</button>
-        <button type="button" class="tab" data-window="all" aria-pressed="false">All of 2026</button>
+        <button type="button" class="tab" data-window="all" aria-pressed="false">All time</button>
       </div>
     </div>
     <div class="band-text">
@@ -139,13 +139,13 @@
     <div class="chart" id="chart"></div>
   </section>
 
-  <p class="foot" id="foot">Live from Superfiliate, refreshed hourly. Counts orders since January 1, 2026. Pending orders count until they're cancelled or returned.</p>
+  <p class="foot" id="foot">Live from Superfiliate, refreshed hourly. Counts orders since November 1, 2026. Pending orders count until they're cancelled or returned.</p>
 </main>
 
 <script>
 (() => {
   const WINDOWS = ['month', '30d', 'all'];
-  const LABEL = { month: 'this month', '30d': 'over the last 30 days', all: 'so far in 2026' };
+  const LABEL = { month: 'this month', '30d': 'over the last 30 days', all: 'since November 1' };
   const TAGS = { 1: 'Leader', 2: 'Runner-up', 3: 'Third place' };
   const $ = (id) => document.getElementById(id);
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -154,7 +154,7 @@
   const initial = (s) => (String(s).replace(/^@/, '').replace(/^[^A-Za-z0-9]+/, '')[0] || '?').toUpperCase();
 
   let data = null;
-  let win = WINDOWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : '30d';
+  let win = WINDOWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'month';
 
   document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => {
     win = b.dataset.window;
@@ -259,7 +259,7 @@
     .then((j) => {
       data = j;
       const t = new Date(j.updated).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles', timeZoneName: 'short' });
-      $('foot').textContent = `Live from Superfiliate, last updated ${t}. Refreshed hourly. Counts orders since January 1, 2026. Pending orders count until they're cancelled or returned.`;
+      $('foot').textContent = `Live from Superfiliate, last updated ${t}. Refreshed hourly. Counts orders since November 1, 2026. Pending orders count until they're cancelled or returned.`;
       render();
     })
     .catch(fail);
