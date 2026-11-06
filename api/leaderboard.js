@@ -1,4 +1,5 @@
-// Serverless function: pulls Superfiliate conversions, ranks affiliates by order count.
+// Serverless function: pulls Superfiliate conversions, ranks affiliates by sales driven.
+// "Sales" = order subtotal after discounts, before shipping and tax (Superfiliate's subtotal_value).
 // Needs two environment variables in Vercel: SF_CLIENT_ID and SF_CLIENT_SECRET.
 // Results are cached at Vercel's edge for 1 hour so the Superfiliate API isn't hit on every view.
 
@@ -48,7 +49,7 @@ module.exports = async (req, res) => {
       .filter((c) => c.status === 'finished' || c.status === 'pending')
       .map((c) => {
         const t = new Date(c.created_at.replace(' UTC', 'Z').replace(' ', 'T'));
-        return { t, day: laDate(t), cid: c.superfiliate_customer_id };
+        return { t, day: laDate(t), cid: c.superfiliate_customer_id, sales: Number(c.subtotal_value) || 0 };
       })
       .filter((o) => o.day >= START_DATE && o.day <= END_DATE && !EXCLUDE_CUSTOMER_IDS.has(Number(o.cid)));
 
@@ -64,14 +65,24 @@ module.exports = async (req, res) => {
     const agg = new Map();
     for (const o of orders) {
       const name = displayName(customers[o.cid]);
-      agg.set(name, (agg.get(name) || 0) + 1);
+      const a = agg.get(name) || { orders: 0, sales: 0 };
+      a.orders += 1;
+      a.sales += o.sales;
+      agg.set(name, a);
     }
-    const sorted = [...agg.entries()].sort((a, b) => b[1] - a[1] || a[0].toLowerCase().localeCompare(b[0].toLowerCase()));
+    const round = (n) => Math.round(n * 100) / 100;
+    const sorted = [...agg.entries()]
+      .map(([affiliate, a]) => ({ affiliate, orders: a.orders, sales: round(a.sales) }))
+      .sort((a, b) => b.sales - a.sales || b.orders - a.orders || a.affiliate.toLowerCase().localeCompare(b.affiliate.toLowerCase()));
     let prev = null, rank = 0;
-    const leaderboard = sorted.map(([affiliate, n], i) => { if (n !== prev) { rank = i + 1; prev = n; } return { rank, affiliate, orders: n }; });
+    // Order counts are used only to break ties; the page shows sales only, so they aren't sent.
+    const leaderboard = sorted.map((r, i) => { if (r.sales !== prev) { rank = i + 1; prev = r.sales; } return { rank, affiliate: r.affiliate, sales: r.sales }; });
 
-    // Total program orders per month of the contest
-    const monthly = ['2026-11', '2026-12'].map((key) => ({ month: key, orders: orders.filter((o) => o.day.startsWith(key)).length }));
+    // Total program sales per month of the contest
+    const monthly = ['2026-11', '2026-12'].map((key) => {
+      const m = orders.filter((o) => o.day.startsWith(key));
+      return { month: key, sales: round(m.reduce((s, o) => s + o.sales, 0)) };
+    });
 
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
     res.status(200).json({ updated: now.toISOString(), today: laDate(now), start: START_DATE, end: END_DATE, leaderboard, monthly });
