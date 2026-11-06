@@ -78,14 +78,8 @@ module.exports = async (req, res) => {
     // Order counts are used only to break ties; the page shows sales only, so they aren't sent.
     const leaderboard = sorted.map((r, i) => { if (r.sales !== prev) { rank = i + 1; prev = r.sales; } return { rank, affiliate: r.affiliate, sales: r.sales }; });
 
-    // Total program sales per month of the contest
-    const monthly = ['2026-11', '2026-12'].map((key) => {
-      const m = orders.filter((o) => o.day.startsWith(key));
-      return { month: key, sales: round(m.reduce((s, o) => s + o.sales, 0)) };
-    });
-
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
-    res.status(200).json({ updated: now.toISOString(), today: laDate(now), start: START_DATE, end: END_DATE, leaderboard, monthly });
+    res.status(200).json({ updated: now.toISOString(), today: laDate(now), start: START_DATE, end: END_DATE, leaderboard });
   } catch (e) {
     res.setHeader('Cache-Control', 'no-store');
     res.status(500).json({ error: String(e.message || e) });
