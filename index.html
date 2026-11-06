@@ -66,7 +66,9 @@
   th { position: sticky; top: 0; z-index: 1; background: var(--bg); text-align: left; font-size: 12px; color: var(--muted); font-weight: 500; padding: 8px; border-bottom: 1px solid var(--line); }
   td { padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
   tbody tr:hover td { background: var(--soft); }
-  .c-rank { width: 3rem; } .c-orders { width: 42%; }
+  .c-rank { width: 3rem; } .c-orders { width: 45%; }
+  .bar-n { min-width: 4.5ch !important; }
+  @media (max-width: 520px) { .track { display: none; } }
   .rank { display: inline-grid; place-items: center; min-width: 1.75rem; height: 1.75rem; border-radius: 999px; font-size: 12px; color: var(--muted); }
   tr.top .rank { background: var(--shade); color: var(--ink); font-weight: 600; }
   tr.first .rank { background: var(--gold); color: var(--on-gold); }
@@ -111,28 +113,28 @@
   </header>
 
   <div class="stats">
-    <div class="stat"><span class="stat-v skeleton" id="tot-orders">00</span><span class="stat-l">orders from affiliates</span></div>
+    <div class="stat"><span class="stat-v skeleton" id="tot-sales">$000</span><span class="stat-l">in sales from affiliates</span></div>
     <div class="stat"><span class="stat-v skeleton" id="tot-affs">00</span><span class="stat-l">affiliates with a sale</span></div>
   </div>
 
   <section class="podium" id="podium" aria-label="Top three"></section>
 
   <section class="section">
-    <div class="section-head"><h2>Rankings</h2><p class="note">By orders placed with your code or link. Ties share a rank.</p></div>
+    <div class="section-head"><h2>Rankings</h2><p class="note">By sales from your code or link.</p></div>
     <div class="tablewrap">
       <table>
-        <thead><tr><th class="c-rank" scope="col">#</th><th scope="col">Affiliate</th><th class="c-orders" scope="col">Orders</th></tr></thead>
+        <thead><tr><th class="c-rank" scope="col">#</th><th scope="col">Affiliate</th><th class="c-orders" scope="col">Sales</th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
     </div>
   </section>
 
   <section class="section">
-    <div class="section-head"><h2>Program orders by month</h2><p class="note">All affiliates combined</p></div>
+    <div class="section-head"><h2>Program sales by month</h2><p class="note">All affiliates combined</p></div>
     <div class="chart" id="chart"></div>
   </section>
 
-  <p class="foot" id="foot">Live from Superfiliate, refreshed hourly. Counts orders placed Nov 1 – Dec 31, 2026 (Pacific time). Pending orders count until they're cancelled or returned.</p>
+  <p class="foot" id="foot">Live from Superfiliate, refreshed hourly. Includes sales from Nov 1 – Dec 31, 2026 (Pacific time). Sales are order subtotals after discounts, before shipping and tax. Pending orders count until they're cancelled or returned.</p>
 </main>
 
 <script>
@@ -142,6 +144,7 @@
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
   const fmt = (n) => n.toLocaleString('en-US');
   const unit = (n) => (n === 1 ? 'order' : 'orders');
+  const usd = (n) => '$' + Math.round(n).toLocaleString('en-US');
   const initial = (s) => (String(s).replace(/^@/, '').replace(/^[^A-Za-z0-9]+/, '')[0] || '?').toUpperCase();
 
   let data = null;
@@ -157,7 +160,7 @@
     $('days').textContent = over ? 'Final results' : notYet ? 'Starts Nov 1' : left === 1 ? 'Last day!' : `${left} days left`;
     document.querySelectorAll('.skeleton').forEach((e) => e.classList.remove('skeleton'));
 
-    $('tot-orders').textContent = fmt(rows.reduce((s, r) => s + r.orders, 0));
+    $('tot-sales').textContent = usd(rows.reduce((s, r) => s + r.sales, 0));
     $('tot-affs').textContent = fmt(rows.length);
 
     const lead = $('lead');
@@ -166,9 +169,9 @@
     } else {
       const top = rows.filter((r) => r.rank === 1);
       if (top.length === 1) {
-        lead.replaceChildren(el('b', null, top[0].affiliate), over ? ' won with ' : ' is in the lead with ', el('b', null, String(top[0].orders)), ` ${unit(top[0].orders)}.`);
+        lead.replaceChildren(el('b', null, top[0].affiliate), over ? ' won with ' : ' is in the lead with ', el('b', null, usd(top[0].sales)), ' in sales.');
       } else {
-        lead.textContent = `${top.length} affiliates are tied for first with ${top[0].orders} ${unit(top[0].orders)} each.`;
+        lead.textContent = `${top.length} affiliates are tied for first with ${usd(top[0].sales)} in sales each.`;
       }
     }
 
@@ -182,19 +185,19 @@
         const c = el('article', 'place' + (r.rank === 1 ? ' first' : ''));
         const big = el('span', 'place-rank', String(r.rank)); big.setAttribute('aria-hidden', 'true');
         const line = el('div', 'place-orders');
-        line.append(el('span', 'place-n', fmt(r.orders)), el('span', 'place-u', unit(r.orders)));
+        line.append(el('span', 'place-n', usd(r.sales)), el('span', 'place-u', 'in sales'));
         c.append(big, el('span', 'place-tag', `#${r.rank} · ${TAGS[r.rank] || 'Top 3'}`), el('span', 'place-name', r.affiliate), line);
         return c;
       }));
     }
 
-    const max = Math.max(1, ...rows.map((r) => r.orders));
+    const max = Math.max(1, ...rows.map((r) => r.sales));
     $('rows').replaceChildren(...rows.map((r) => {
       const tr = el('tr', (r.rank <= 3 ? 'top' : '') + (r.rank === 1 ? ' first' : ''));
       const c1 = el('td', 'c-rank'); c1.append(el('span', 'rank', String(r.rank)));
       const c2 = el('td'); const a = el('span', 'aff'); a.append(el('span', 'avatar', initial(r.affiliate)), el('span', null, r.affiliate)); c2.append(a);
       const c3 = el('td', 'c-orders'); const bar = el('div', 'bar'); const track = el('span', 'track'); const fill = el('span', 'fill');
-      fill.style.width = Math.max(3, (r.orders / max) * 100) + '%'; track.append(fill); bar.append(track, el('span', 'bar-n', String(r.orders))); c3.append(bar);
+      fill.style.width = Math.max(3, (r.sales / max) * 100) + '%'; track.append(fill); bar.append(track, el('span', 'bar-n', usd(r.sales))); c3.append(bar);
       tr.append(c1, c2, c3);
       return tr;
     }));
@@ -205,25 +208,25 @@
     const box = $('chart');
     const d = data.monthly;
     const W = Math.max(280, box.clientWidth || 600), H = 180, top = 22, bottom = 26;
-    const max = Math.max(1, ...d.map((m) => m.orders));
+    const max = Math.max(1, ...d.map((m) => m.sales));
     const band = W / d.length, bw = Math.min(40, band * 0.6);
     const ns = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(ns, 'svg');
-    svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Affiliate orders by month');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Affiliate sales by month');
     const mk = (tag, attrs, style) => { const n = document.createElementNS(ns, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (style) n.setAttribute('style', style); return n; };
     const tip = el('div', 'tip'); tip.hidden = true;
     d.forEach((m, i) => {
       const date = new Date(m.month + '-01T12:00:00Z');
       const x = i * band + band * 0.1, cx = i * band + band / 2;
-      const h = ((H - top - bottom) * m.orders) / max, y = H - bottom - h;
+      const h = ((H - top - bottom) * m.sales) / max, y = H - bottom - h;
       const last = m.month === String(data.today).slice(0, 7);
       svg.append(mk('rect', { x, y: top, width: band * 0.8, height: H - top - bottom, rx: 4 }, 'fill: var(--soft)'));
       svg.append(mk('rect', { x: cx - bw / 2, y, width: bw, height: Math.max(0, h), rx: 4 }, `fill: ${last ? 'var(--gold)' : 'var(--accent)'}`));
-      const v = mk('text', { x: cx, y: y - 6, 'text-anchor': 'middle' }, 'fill: var(--ink); font-size: 12px; font-weight: 600'); v.textContent = m.orders; svg.append(v);
+      const v = mk('text', { x: cx, y: y - 6, 'text-anchor': 'middle' }, 'fill: var(--ink); font-size: 12px; font-weight: 600'); v.textContent = usd(m.sales); svg.append(v);
       const l = mk('text', { x: cx, y: H - 6, 'text-anchor': 'middle' }, 'fill: var(--muted); font-size: 12px'); l.textContent = date.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' }); svg.append(l);
       const hit = mk('rect', { x: i * band, y: top, width: band, height: H - top - bottom }, 'fill: transparent');
       hit.addEventListener('pointermove', (e) => {
-        tip.replaceChildren(el('div', 'tip-k', date.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })), el('div', null, `${fmt(m.orders)} ${unit(m.orders)}`));
+        tip.replaceChildren(el('div', 'tip-k', date.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })), el('div', null, `${usd(m.sales)} in sales`));
         tip.hidden = false;
         const r = box.getBoundingClientRect();
         tip.style.left = Math.min(Math.max(0, e.clientX - r.left + 12), r.width - tip.offsetWidth) + 'px';
@@ -247,7 +250,7 @@
     .then((j) => {
       data = j;
       const t = new Date(j.updated).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles', timeZoneName: 'short' });
-      $('foot').textContent = `Live from Superfiliate, last updated ${t}. Refreshed hourly. Counts orders placed Nov 1 – Dec 31, 2026 (Pacific time). Pending orders count until they're cancelled or returned.`;
+      $('foot').textContent = `Live from Superfiliate, last updated ${t}. Refreshed hourly. Includes sales from Nov 1 – Dec 31, 2026 (Pacific time). Sales are order subtotals after discounts, before shipping and tax. Pending orders count until they're cancelled or returned.`;
       render();
     })
     .catch(fail);
